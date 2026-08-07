@@ -1,6 +1,0 @@
-{
-  "name": "برا السالفة - لعبة الجاسوس الجماعية",
-  "description": "لعبة ويب تفاعلية جماعية في الوقت الفعلي مستوحاة من لعبة برا السالفة (الجاسوس) مع المزامنة المباشرة عبر Socket.io.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

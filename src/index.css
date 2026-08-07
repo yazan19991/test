@@ -1,27 +1,98 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --bg-dark: #0b0b1a;
-  --bg-card: rgba(22, 22, 45, 0.85);
-  --accent-orange: #ff5f1f;
-  --accent-glow: rgba(255, 95, 31, 0.4);
-  --success-neon: #00ff88;
-  --text-main: #e0e0f0;
-  --text-muted: #8888b0;
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 body {
-  background-color: #0b0b1a;
-  background-image: radial-gradient(circle at 50% 40%, #1a1a3a 0%, #0b0b1a 100%);
-  color: #e0e0f0;
-  min-height: 100vh;
+  margin: 0;
+  min-width: 320px;
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.18), transparent 30%),
+    linear-gradient(315deg, rgba(225, 29, 72, 0.14), transparent 34%),
+    #101418;
 }
 
-.glow-orange {
-  box-shadow: 0 0 25px rgba(255, 95, 31, 0.4);
+button,
+input,
+select {
+  font: inherit;
 }
 
-.glow-green {
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+.game-table {
+  position: relative;
+  width: min(260px, 72vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 48% 42%, #2dd4bf 0 8%, transparent 9%),
+    radial-gradient(circle at 50% 50%, #115e59 0 39%, #0f766e 40% 58%, #164e63 59% 63%, #111827 64%);
+  box-shadow: inset 0 0 0 12px rgba(255, 255, 255, 0.08), 0 30px 70px rgba(0, 0, 0, 0.34);
 }
 
+.game-table::before,
+.game-table::after {
+  content: "";
+  position: absolute;
+  inset: 19%;
+  border-radius: 999px;
+  border: 2px dashed rgba(248, 250, 252, 0.2);
+}
+
+.game-table::after {
+  inset: 36%;
+  border-style: solid;
+  border-color: rgba(248, 250, 252, 0.28);
+}
+
+.table-token {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.26);
+}
+
+.table-token:nth-child(1) {
+  top: 9%;
+  left: 44%;
+  background: #f59e0b;
+}
+
+.table-token:nth-child(2) {
+  top: 28%;
+  right: 9%;
+  background: #e11d48;
+}
+
+.table-token:nth-child(3) {
+  right: 19%;
+  bottom: 14%;
+  background: #2563eb;
+}
+
+.table-token:nth-child(4) {
+  bottom: 12%;
+  left: 22%;
+  background: #f8fafc;
+}
+
+.table-token:nth-child(5) {
+  top: 31%;
+  left: 7%;
+  background: #a3e635;
+}

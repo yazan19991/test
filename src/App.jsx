@@ -64,10 +64,13 @@ const UI = {
     currentQuestion: "Current question",
     asks: "asks",
     answers: "answers",
+    confirmAnswer: "They answered",
+    confirmAnswerHint: (name) => `Press this after ${name} answers out loud.`,
+    waitingAnswerConfirmation: (asker, answerer) => `Waiting for ${answerer} to answer. ${asker} will confirm it.`,
+    waitingNextChoice: (name) => `Waiting for ${name} to choose the next player.`,
     chooseNextPlayer: "Choose the next player",
-    chooseNextHint: "After you answer, choose who you want to ask next.",
-    waitingNextChoice: (name) => `Waiting for ${name} to answer and choose the next player.`,
-    alreadyAnswered: "Answered",
+    chooseNextHint: "Choose who you want to ask next.",
+    alreadyAsked: "Asked",
     notAvailable: "Not available",
     readyToVote: "Ready to vote",
     readyToVoteButton: "Ready to Vote 🗳️",
@@ -130,10 +133,13 @@ const UI = {
     currentQuestion: "السؤال الحالي",
     asks: "يسأل",
     answers: "يجيب",
+    confirmAnswer: "أجاب",
+    confirmAnswerHint: (name) => `اضغط هذا الزر بعد أن يجيب ${name} بصوت مسموع.`,
+    waitingAnswerConfirmation: (asker, answerer) => `بانتظار ${answerer} ليجيب. ${asker} سيؤكد الإجابة.`,
+    waitingNextChoice: (name) => `بانتظار ${name} ليختار اللاعب التالي.`,
     chooseNextPlayer: "اختر اللاعب التالي",
-    chooseNextHint: "بعد أن تجيب، اختر من تريد أن تسأله بعدك.",
-    waitingNextChoice: (name) => `بانتظار ${name} ليجيب ويختار اللاعب التالي.`,
-    alreadyAnswered: "أجاب",
+    chooseNextHint: "اختر من تريد أن تسأله بعدك.",
+    alreadyAsked: "تم سؤاله",
     notAvailable: "غير متاح",
     readyToVote: "جاهزون للتصويت",
     readyToVoteButton: "جاهز للتصويت 🗳️",
@@ -637,7 +643,33 @@ function TurnPlayer({ label, player, tone }) {
 }
 
 function NextQuestionChooser({ send, state, t, eligibleTargetIds, askedAnswererIds }) {
+  const currentAskerName = state.questioning.currentAsker?.name ?? "";
   const currentAnswererName = state.questioning.currentAnswerer?.name ?? "";
+
+  if (state.questioning.canConfirmAnswer) {
+    return (
+      <div className="rounded-[8px] border border-teal-200 bg-teal-50 p-4">
+        <p className="text-sm font-black text-slate-950">{t.confirmAnswer}</p>
+        <p className="mt-1 text-sm font-bold text-slate-600">{t.confirmAnswerHint(currentAnswererName)}</p>
+        <button
+          type="button"
+          onClick={() => send("confirmQuestionAnswer", { roomCode: state.roomCode })}
+          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-teal-700 px-5 text-sm font-black text-white transition hover:bg-teal-800"
+        >
+          <Check className="h-5 w-5" />
+          {t.confirmAnswer}
+        </button>
+      </div>
+    );
+  }
+
+  if (!state.questioning.answerConfirmed) {
+    return (
+      <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+        {t.waitingAnswerConfirmation(currentAskerName, currentAnswererName)}
+      </div>
+    );
+  }
 
   if (!state.questioning.canChooseNext) {
     return (
@@ -675,7 +707,7 @@ function NextQuestionChooser({ send, state, t, eligibleTargetIds, askedAnswererI
               >
                 <span className="min-w-0 truncate">{player.name}</span>
                 <span className="shrink-0 text-xs">
-                  {isEligible ? (hasAnswered ? t.alreadyAnswered : "") : t.notAvailable}
+                  {isEligible ? (hasAnswered ? t.alreadyAsked : "") : t.notAvailable}
                 </span>
               </button>
             );
@@ -859,7 +891,7 @@ function PlayerList({ players, t, readyIds = new Set(), askedAnswererIds = new S
             <span className="flex shrink-0 items-center gap-2">
               {askedAnswererIds.has(player.id) ? (
                 <span className="rounded-full bg-amber-100 px-2 py-1 text-[0.68rem] font-black text-amber-700">
-                  {t.alreadyAnswered}
+                  {t.alreadyAsked}
                 </span>
               ) : null}
               {readyIds.has(player.id) ? <Check className="h-4 w-4 text-emerald-700" /> : null}

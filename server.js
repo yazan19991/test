@@ -317,6 +317,7 @@ function createInitialQuestionTurn(room) {
     askerId,
     answererId,
     turnNumber: 1,
+    answerConfirmed: false,
   };
   room.questionAskedAnswerers = new Set([answererId]);
 }
@@ -397,7 +398,8 @@ function buildState(room, playerId) {
   }
 
   if (room.phase === "questioning") {
-    const eligibleTargetIds = eligibleNextTargets(room);
+    const answerConfirmed = Boolean(room.questionTurn?.answerConfirmed);
+    const eligibleTargetIds = answerConfirmed ? eligibleNextTargets(room) : [];
     state.questioning = {
       readyToVoteIds: [...room.readyToVote],
       readyToVoteCount: room.readyToVote.size,
@@ -408,9 +410,11 @@ function buildState(room, playerId) {
       currentAsker: room.questionTurn?.askerId ? playerSnapshot(room, room.questionTurn.askerId) : null,
       currentAnswerer: room.questionTurn?.answererId ? playerSnapshot(room, room.questionTurn.answererId) : null,
       turnNumber: room.questionTurn?.turnNumber ?? 0,
+      answerConfirmed,
       askedAnswererIds: [...room.questionAskedAnswerers],
       eligibleTargetIds,
-      canChooseNext: room.questionTurn?.answererId === playerId,
+      canConfirmAnswer: room.questionTurn?.askerId === playerId && !answerConfirmed,
+      canChooseNext: room.questionTurn?.answererId === playerId && answerConfirmed,
     };
   }
 
@@ -800,6 +804,34 @@ io.on("connection", (socket) => {
     emitRoomState(room);
   });
 
+  socket.on("confirmQuestionAnswer", ({ roomCode } = {}, ack) => {
+    const room = getPlayerRoom(socket, roomCode);
+
+    if (!room) {
+      fail(ack, "You are not in that room.");
+      return;
+    }
+
+    if (room.phase !== "questioning") {
+      fail(ack, "Question turns are only active during questioning.");
+      return;
+    }
+
+    if (socket.id !== room.questionTurn?.askerId) {
+      fail(ack, "Only the current asker can confirm the answer.");
+      return;
+    }
+
+    if (room.questionTurn.answerConfirmed) {
+      fail(ack, "That answer is already confirmed.");
+      return;
+    }
+
+    room.questionTurn.answerConfirmed = true;
+    ok(ack);
+    emitRoomState(room);
+  });
+
   socket.on("chooseNextQuestionTarget", ({ roomCode, targetId } = {}, ack) => {
     const room = getPlayerRoom(socket, roomCode);
 
@@ -818,6 +850,11 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (!room.questionTurn.answerConfirmed) {
+      fail(ack, "Wait for the asker to confirm that you answered.");
+      return;
+    }
+
     const eligibleTargetIds = eligibleNextTargets(room);
 
     if (!eligibleTargetIds.includes(targetId)) {
@@ -829,6 +866,7 @@ io.on("connection", (socket) => {
       askerId: socket.id,
       answererId: targetId,
       turnNumber: (room.questionTurn?.turnNumber ?? 0) + 1,
+      answerConfirmed: false,
     };
     room.questionAskedAnswerers.add(targetId);
 

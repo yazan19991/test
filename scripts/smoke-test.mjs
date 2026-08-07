@@ -91,6 +91,16 @@ function emit(socket, event, payload = {}) {
   });
 }
 
+async function assertEmitFails(socket, event, payload, message) {
+  try {
+    await emit(socket, event, payload);
+  } catch {
+    return;
+  }
+
+  throw new Error(message);
+}
+
 function waitForState(socket, predicate, label, timeoutMs = 4000) {
   if (socket.latestState && predicate(socket.latestState)) {
     return Promise.resolve(socket.latestState);
@@ -157,7 +167,32 @@ async function main() {
     assert(firstQuestioningState.questioning.currentAsker?.id, "Initial asker was not assigned.");
     assert(firstQuestioningState.questioning.currentAnswerer?.id, "Initial answerer was not assigned.");
 
+    const asker = clients.find((client) => client.socket.id === firstQuestioningState.questioning.currentAsker.id);
     const answerer = clients.find((client) => client.socket.id === firstQuestioningState.questioning.currentAnswerer.id);
+    const blockedTarget = clients.find(
+      (client) => client.socket.id !== asker.socket.id && client.socket.id !== answerer.socket.id,
+    );
+    assert(blockedTarget, "No blocked next target candidate was available.");
+    assert(answerer.socket.latestState.questioning.canChooseNext === false, "Answerer should not choose before answer confirmation.");
+    await assertEmitFails(
+      answerer.socket,
+      "chooseNextQuestionTarget",
+      { roomCode, targetId: blockedTarget.socket.id },
+      "Answerer was able to choose the next target before the asker confirmed the answer.",
+    );
+
+    assert(asker.socket.latestState.questioning.canConfirmAnswer === true, "Current asker should be able to confirm the answer.");
+    await emit(asker.socket, "confirmQuestionAnswer", { roomCode });
+    await Promise.all(
+      clients.map((client) =>
+        waitForState(
+          client.socket,
+          (state) => state.phase === "questioning" && state.questioning.answerConfirmed === true,
+          "answer confirmation",
+        ),
+      ),
+    );
+
     const nextTargetId = answerer.socket.latestState.questioning.eligibleTargetIds[0];
     assert(nextTargetId, "Answerer did not receive an eligible next target.");
     await emit(answerer.socket, "chooseNextQuestionTarget", { roomCode, targetId: nextTargetId });

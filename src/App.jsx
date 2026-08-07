@@ -17,7 +17,8 @@ import {
   Vote,
 } from "lucide-react";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
 
 const LANGUAGE_OPTIONS = [
   { id: "en", nativeName: "English", direction: "ltr" },
@@ -57,7 +58,17 @@ const UI = {
     confirmed: "Confirmed",
     iUnderstand: "I Understand",
     questioning: "Questioning",
-    questioningTitle: "Find the player who is bluffing.",
+    questioningTitle: "Follow the turns and find the player who is bluffing.",
+    roundEndsIn: "Round ends in",
+    turnLabel: "Turn",
+    currentQuestion: "Current question",
+    asks: "asks",
+    answers: "answers",
+    chooseNextPlayer: "Choose the next player",
+    chooseNextHint: "After you answer, choose who you want to ask next.",
+    waitingNextChoice: (name) => `Waiting for ${name} to answer and choose the next player.`,
+    alreadyAnswered: "Answered",
+    notAvailable: "Not available",
     readyToVote: "Ready to vote",
     readyToVoteButton: "Ready to Vote 🗳️",
     voteReadinessLocked: "Vote Readiness Locked",
@@ -113,7 +124,17 @@ const UI = {
     confirmed: "تم التأكيد",
     iUnderstand: "فهمت الدور",
     questioning: "الأسئلة",
-    questioningTitle: "اكتشف اللاعب الذي يراوغ.",
+    questioningTitle: "اتبع ترتيب الأدوار واكتشف اللاعب الذي يراوغ.",
+    roundEndsIn: "تنتهي الجولة خلال",
+    turnLabel: "الدور",
+    currentQuestion: "السؤال الحالي",
+    asks: "يسأل",
+    answers: "يجيب",
+    chooseNextPlayer: "اختر اللاعب التالي",
+    chooseNextHint: "بعد أن تجيب، اختر من تريد أن تسأله بعدك.",
+    waitingNextChoice: (name) => `بانتظار ${name} ليجيب ويختار اللاعب التالي.`,
+    alreadyAnswered: "أجاب",
+    notAvailable: "غير متاح",
     readyToVote: "جاهزون للتصويت",
     readyToVoteButton: "جاهز للتصويت 🗳️",
     voteReadinessLocked: "تم تسجيل جاهزيتك",
@@ -166,6 +187,17 @@ function useElapsedSeconds(phaseStartedAt) {
   }, []);
 
   return Math.max(0, Math.floor((now - (phaseStartedAt ?? now)) / 1000));
+}
+
+function useRemainingSeconds(endsAt) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return Math.max(0, Math.ceil(((endsAt ?? now) - now) / 1000));
 }
 
 function App() {
@@ -527,9 +559,13 @@ function RoleView({ send, state, t }) {
 }
 
 function Questioning({ send, state, t }) {
-  const elapsed = useElapsedSeconds(state.phaseStartedAt);
+  const remaining = useRemainingSeconds(state.questioning.endsAt);
   const readyIds = new Set(state.questioning.readyToVoteIds);
+  const askedAnswererIds = new Set(state.questioning.askedAnswererIds);
+  const eligibleTargetIds = new Set(state.questioning.eligibleTargetIds);
   const readyPercent = Math.min(100, (state.questioning.readyToVoteCount / state.questioning.readyRequired) * 100);
+  const currentAsker = state.questioning.currentAsker;
+  const currentAnswerer = state.questioning.currentAnswerer;
 
   return (
     <div className="space-y-6">
@@ -537,10 +573,31 @@ function Questioning({ send, state, t }) {
         <StageHeading eyebrow={t.questioning} title={t.questioningTitle} />
         <div className="inline-flex h-14 min-w-[8rem] items-center justify-center gap-2 rounded-[8px] bg-slate-950 px-4 font-black text-white">
           <Timer className="h-5 w-5 text-amber-300" />
-          <span className="tabular-nums">{formatTime(elapsed)}</span>
+          <span className="sr-only">{t.roundEndsIn}</span>
+          <span className="tabular-nums">{formatTime(remaining)}</span>
         </div>
       </div>
-      <PlayerList players={state.players} readyIds={readyIds} t={t} />
+      <div className="rounded-[8px] border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            {t.turnLabel} {state.questioning.turnNumber}
+          </p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">{t.currentQuestion}</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <TurnPlayer label={t.asks} player={currentAsker} tone="asker" />
+          <div className="hidden h-1 w-10 rounded-full bg-slate-200 sm:block" />
+          <TurnPlayer label={t.answers} player={currentAnswerer} tone="answerer" />
+        </div>
+      </div>
+      <NextQuestionChooser
+        send={send}
+        state={state}
+        t={t}
+        eligibleTargetIds={eligibleTargetIds}
+        askedAnswererIds={askedAnswererIds}
+      />
+      <PlayerList players={state.players} readyIds={readyIds} askedAnswererIds={askedAnswererIds} t={t} />
       <div>
         <div className="mb-3 flex items-center justify-between gap-3 text-sm font-black text-slate-700">
           <span>{t.readyToVote}</span>
@@ -561,6 +618,69 @@ function Questioning({ send, state, t }) {
         <Vote className="h-5 w-5" />
         {state.questioning.hasReady ? t.voteReadinessLocked : t.readyToVoteButton}
       </button>
+    </div>
+  );
+}
+
+function TurnPlayer({ label, player, tone }) {
+  return (
+    <div
+      className={classNames(
+        "min-w-0 rounded-[8px] border p-4",
+        tone === "asker" ? "border-teal-200 bg-teal-50" : "border-amber-200 bg-amber-50",
+      )}
+    >
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-2xl font-black text-slate-950">{player?.name ?? "..."}</p>
+    </div>
+  );
+}
+
+function NextQuestionChooser({ send, state, t, eligibleTargetIds, askedAnswererIds }) {
+  const currentAnswererName = state.questioning.currentAnswerer?.name ?? "";
+
+  if (!state.questioning.canChooseNext) {
+    return (
+      <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+        {t.waitingNextChoice(currentAnswererName)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4">
+      <div className="mb-3">
+        <p className="text-sm font-black text-slate-950">{t.chooseNextPlayer}</p>
+        <p className="mt-1 text-sm font-bold text-slate-600">{t.chooseNextHint}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {state.players
+          .filter((player) => player.id !== state.playerId)
+          .map((player) => {
+            const isEligible = eligibleTargetIds.has(player.id);
+            const hasAnswered = askedAnswererIds.has(player.id);
+
+            return (
+              <button
+                key={player.id}
+                type="button"
+                disabled={!isEligible}
+                onClick={() => send("chooseNextQuestionTarget", { roomCode: state.roomCode, targetId: player.id })}
+                className={classNames(
+                  "flex min-h-14 items-center justify-between gap-3 rounded-[8px] border px-4 text-sm font-black transition",
+                  isEligible
+                    ? "border-slate-200 bg-white text-slate-950 hover:border-teal-300 hover:bg-teal-50"
+                    : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400",
+                )}
+              >
+                <span className="min-w-0 truncate">{player.name}</span>
+                <span className="shrink-0 text-xs">
+                  {isEligible ? (hasAnswered ? t.alreadyAnswered : "") : t.notAvailable}
+                </span>
+              </button>
+            );
+          })}
+      </div>
     </div>
   );
 }
@@ -722,7 +842,7 @@ function StageHeading({ eyebrow, title, centered = false }) {
   );
 }
 
-function PlayerList({ players, t, readyIds = new Set() }) {
+function PlayerList({ players, t, readyIds = new Set(), askedAnswererIds = new Set() }) {
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-slate-500">
@@ -737,6 +857,11 @@ function PlayerList({ players, t, readyIds = new Set() }) {
           >
             <span className="min-w-0 truncate">{player.name}</span>
             <span className="flex shrink-0 items-center gap-2">
+              {askedAnswererIds.has(player.id) ? (
+                <span className="rounded-full bg-amber-100 px-2 py-1 text-[0.68rem] font-black text-amber-700">
+                  {t.alreadyAnswered}
+                </span>
+              ) : null}
               {readyIds.has(player.id) ? <Check className="h-4 w-4 text-emerald-700" /> : null}
               {player.isHost ? <Crown className="h-4 w-4 text-amber-500" /> : null}
             </span>

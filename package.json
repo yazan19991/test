@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm:server\" \"npm:client\"",
+    "start": "node server.js",
     "server": "node server.js",
     "client": "vite --host 127.0.0.1",
     "build": "vite build",

@@ -148,7 +148,32 @@ async function main() {
     assert(hasArabicLetters(targetWord), "Arabic room did not receive an Arabic target word.");
 
     await Promise.all(clients.map((client) => emit(client.socket, "ackRole", { roomCode })));
-    await Promise.all(clients.map((client) => waitForState(client.socket, (state) => state.phase === "questioning", "questioning")));
+    const questioningStates = await Promise.all(
+      clients.map((client) => waitForState(client.socket, (state) => state.phase === "questioning", "questioning")),
+    );
+    const firstQuestioningState = questioningStates[0];
+    assert(firstQuestioningState.questioning.durationSeconds === 300, "Questioning duration should be 5 minutes.");
+    assert(firstQuestioningState.questioning.endsAt > Date.now(), "Questioning countdown was not scheduled.");
+    assert(firstQuestioningState.questioning.currentAsker?.id, "Initial asker was not assigned.");
+    assert(firstQuestioningState.questioning.currentAnswerer?.id, "Initial answerer was not assigned.");
+
+    const answerer = clients.find((client) => client.socket.id === firstQuestioningState.questioning.currentAnswerer.id);
+    const nextTargetId = answerer.socket.latestState.questioning.eligibleTargetIds[0];
+    assert(nextTargetId, "Answerer did not receive an eligible next target.");
+    await emit(answerer.socket, "chooseNextQuestionTarget", { roomCode, targetId: nextTargetId });
+    await Promise.all(
+      clients.map((client) =>
+        waitForState(
+          client.socket,
+          (state) =>
+            state.phase === "questioning" &&
+            state.questioning.turnNumber === 2 &&
+            state.questioning.currentAsker.id === answerer.socket.id &&
+            state.questioning.currentAnswerer.id === nextTargetId,
+          "next questioning turn",
+        ),
+      ),
+    );
 
     await emit(host.socket, "readyToVote", { roomCode });
     await emit(maya.socket, "readyToVote", { roomCode });

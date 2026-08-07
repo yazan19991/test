@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import fs from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ import { Server } from "socket.io";
 
 const PORT = process.env.PORT || 3001;
 const MIN_PLAYERS = 3;
+const QUESTIONING_SECONDS = 5 * 60;
 
 const LANGUAGES = {
   en: {
@@ -162,6 +164,7 @@ app.get("/api/health", (_req, res) => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, "dist");
+const indexPath = path.join(distPath, "index.html");
 app.use(express.static(distPath));
 app.get("*", (_req, res, next) => {
   if (!process.env.SERVE_STATIC) {
@@ -169,7 +172,12 @@ app.get("*", (_req, res, next) => {
     return;
   }
 
-  res.sendFile(path.join(distPath, "index.html"));
+  if (!fs.existsSync(indexPath)) {
+    res.status(500).send("Frontend build is missing. Run `npm run build` before starting the server.");
+    return;
+  }
+
+  res.sendFile(indexPath);
 });
 
 function publicLanguages() {
@@ -282,6 +290,63 @@ function readyRequired(room) {
   return Math.floor(room.players.size / 2) + 1;
 }
 
+function clearQuestionTimer(room) {
+  if (room.questionTimer) {
+    clearTimeout(room.questionTimer);
+    room.questionTimer = null;
+  }
+}
+
+function eligibleNextTargets(room) {
+  if (!room.questionTurn?.answererId) {
+    return [];
+  }
+
+  const chooserId = room.questionTurn.answererId;
+  const previousAskerId = room.questionTurn.askerId;
+  const baseCandidates = [...room.players.keys()].filter((playerId) => playerId !== chooserId && playerId !== previousAskerId);
+  const unaskedCandidates = baseCandidates.filter((playerId) => !room.questionAskedAnswerers.has(playerId));
+
+  return unaskedCandidates.length > 0 ? unaskedCandidates : baseCandidates;
+}
+
+function createInitialQuestionTurn(room) {
+  const [askerId, answererId] = shuffle([...room.players.keys()]).slice(0, 2);
+
+  room.questionTurn = {
+    askerId,
+    answererId,
+    turnNumber: 1,
+  };
+  room.questionAskedAnswerers = new Set([answererId]);
+}
+
+function repairQuestionTurn(room) {
+  if (room.phase !== "questioning" || room.players.size < 2) {
+    return;
+  }
+
+  const currentAskerIsHere = room.players.has(room.questionTurn?.askerId);
+  const currentAnswererIsHere = room.players.has(room.questionTurn?.answererId);
+
+  if (currentAskerIsHere && currentAnswererIsHere) {
+    return;
+  }
+
+  createInitialQuestionTurn(room);
+}
+
+function scheduleQuestionTimer(room) {
+  clearQuestionTimer(room);
+  const remainingMs = Math.max(0, room.questionEndsAt - Date.now());
+
+  room.questionTimer = setTimeout(() => {
+    if (rooms.get(room.code)?.phase === "questioning") {
+      startVoting(room);
+    }
+  }, remainingMs);
+}
+
 function voteSummary(room) {
   const counts = new Map();
 
@@ -332,11 +397,20 @@ function buildState(room, playerId) {
   }
 
   if (room.phase === "questioning") {
+    const eligibleTargetIds = eligibleNextTargets(room);
     state.questioning = {
       readyToVoteIds: [...room.readyToVote],
       readyToVoteCount: room.readyToVote.size,
       readyRequired: readyRequired(room),
       hasReady: room.readyToVote.has(playerId),
+      durationSeconds: QUESTIONING_SECONDS,
+      endsAt: room.questionEndsAt,
+      currentAsker: room.questionTurn?.askerId ? playerSnapshot(room, room.questionTurn.askerId) : null,
+      currentAnswerer: room.questionTurn?.answererId ? playerSnapshot(room, room.questionTurn.answererId) : null,
+      turnNumber: room.questionTurn?.turnNumber ?? 0,
+      askedAnswererIds: [...room.questionAskedAnswerers],
+      eligibleTargetIds,
+      canChooseNext: room.questionTurn?.answererId === playerId,
     };
   }
 
@@ -370,11 +444,15 @@ function emitRoomState(room) {
 }
 
 function resetRoundState(room) {
+  clearQuestionTimer(room);
   room.targetWord = null;
   room.spyId = null;
   room.seenRole.clear();
   room.readyToVote.clear();
   room.votes.clear();
+  room.questionTurn = null;
+  room.questionAskedAnswerers = new Set();
+  room.questionEndsAt = null;
   room.guessOptions = [];
   room.result = null;
   room.phaseStartedAt = Date.now();
@@ -383,11 +461,15 @@ function resetRoundState(room) {
 function startQuestioning(room) {
   room.phase = "questioning";
   room.phaseStartedAt = Date.now();
+  room.questionEndsAt = room.phaseStartedAt + QUESTIONING_SECONDS * 1000;
   room.readyToVote.clear();
+  createInitialQuestionTurn(room);
+  scheduleQuestionTimer(room);
   emitRoomState(room);
 }
 
 function startVoting(room) {
+  clearQuestionTimer(room);
   room.phase = "voting";
   room.phaseStartedAt = Date.now();
   room.votes.clear();
@@ -402,6 +484,7 @@ function createGuessOptions(room) {
 }
 
 function endRound(room, result) {
+  clearQuestionTimer(room);
   room.phase = "reveal";
   room.phaseStartedAt = Date.now();
   room.result = {
@@ -464,6 +547,7 @@ function removePlayer(playerId) {
   room.players.delete(playerId);
   room.seenRole.delete(playerId);
   room.readyToVote.delete(playerId);
+  room.questionAskedAnswerers.delete(playerId);
   room.votes.delete(playerId);
 
   for (const [voterId, candidateId] of room.votes.entries()) {
@@ -501,6 +585,10 @@ function removePlayer(playerId) {
     return;
   }
 
+  if (room.phase === "questioning") {
+    repairQuestionTurn(room);
+  }
+
   if (room.phase === "voting" && room.votes.size >= room.players.size) {
     resolveVoting(room);
     return;
@@ -533,6 +621,10 @@ io.on("connection", (socket) => {
       seenRole: new Set(),
       readyToVote: new Set(),
       votes: new Map(),
+      questionTurn: null,
+      questionAskedAnswerers: new Set(),
+      questionEndsAt: null,
+      questionTimer: null,
       guessOptions: [],
       result: null,
     };
@@ -705,6 +797,42 @@ io.on("connection", (socket) => {
       return;
     }
 
+    emitRoomState(room);
+  });
+
+  socket.on("chooseNextQuestionTarget", ({ roomCode, targetId } = {}, ack) => {
+    const room = getPlayerRoom(socket, roomCode);
+
+    if (!room) {
+      fail(ack, "You are not in that room.");
+      return;
+    }
+
+    if (room.phase !== "questioning") {
+      fail(ack, "Question turns are only active during questioning.");
+      return;
+    }
+
+    if (socket.id !== room.questionTurn?.answererId) {
+      fail(ack, "Only the player who just answered can choose the next target.");
+      return;
+    }
+
+    const eligibleTargetIds = eligibleNextTargets(room);
+
+    if (!eligibleTargetIds.includes(targetId)) {
+      fail(ack, "Choose an eligible player.");
+      return;
+    }
+
+    room.questionTurn = {
+      askerId: socket.id,
+      answererId: targetId,
+      turnNumber: (room.questionTurn?.turnNumber ?? 0) + 1,
+    };
+    room.questionAskedAnswerers.add(targetId);
+
+    ok(ack);
     emitRoomState(room);
   });
 

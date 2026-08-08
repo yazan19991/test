@@ -8,7 +8,7 @@ import { Server } from "socket.io";
 
 const PORT = process.env.PORT || 3001;
 const MIN_PLAYERS = 3;
-const QUESTIONING_SECONDS = 5 * 60;
+const QUESTIONING_SECONDS = 7 * 60;
 
 const LANGUAGES = {
   en: {
@@ -26,6 +26,188 @@ const LANGUAGES = {
 };
 
 const WORD_PACKS = {
+  objects: {
+    name: {
+      en: "Objects",
+      ar: "أشياء",
+    },
+    words: {
+      en: [
+        "Backpack",
+        "Mirror",
+        "Candle",
+        "Key",
+        "Clock",
+        "Umbrella",
+        "Notebook",
+        "Bottle",
+        "Headphones",
+        "Wallet",
+        "Chair",
+        "Lamp",
+        "Remote",
+        "Camera",
+        "Blanket",
+      ],
+      ar: ["حقيبة", "مرآة", "شمعة", "مفتاح", "ساعة", "مظلة", "دفتر", "زجاجة", "سماعات", "محفظة", "كرسي", "مصباح", "ريموت", "كاميرا", "بطانية"],
+    },
+  },
+  animal: {
+    name: {
+      en: "Animal",
+      ar: "حيوانات",
+    },
+    words: {
+      en: [
+        "Lion",
+        "Tiger",
+        "Elephant",
+        "Giraffe",
+        "Penguin",
+        "Dolphin",
+        "Eagle",
+        "Wolf",
+        "Panda",
+        "Kangaroo",
+        "Crocodile",
+        "Horse",
+        "Rabbit",
+        "Shark",
+        "Camel",
+      ],
+      ar: ["أسد", "نمر", "فيل", "زرافة", "بطريق", "دلفين", "نسر", "ذئب", "باندا", "كنغر", "تمساح", "حصان", "أرنب", "قرش", "جمل"],
+    },
+  },
+  leagueChamps: {
+    name: {
+      en: "League of Legends Champs",
+      ar: "أبطال ليغ أوف ليجندز",
+    },
+    words: {
+      en: [
+        "Ahri",
+        "Yasuo",
+        "Lux",
+        "Jinx",
+        "Lee Sin",
+        "Garen",
+        "Darius",
+        "Akali",
+        "Ezreal",
+        "Thresh",
+        "Zed",
+        "Caitlyn",
+        "Teemo",
+        "Vayne",
+        "Katarina",
+      ],
+      ar: ["أهري", "ياسو", "لوكس", "جينكس", "لي سين", "غارين", "داريوس", "أكالي", "إزريال", "ثرش", "زيد", "كايتلن", "تيمو", "فاين", "كاتارينا"],
+    },
+  },
+  games: {
+    name: {
+      en: "Games",
+      ar: "ألعاب",
+    },
+    words: {
+      en: [
+        "Minecraft",
+        "Fortnite",
+        "Valorant",
+        "FIFA",
+        "Rocket League",
+        "Among Us",
+        "Call of Duty",
+        "Overwatch",
+        "Apex Legends",
+        "Roblox",
+        "GTA",
+        "Elden Ring",
+        "The Sims",
+        "Zelda",
+        "Counter-Strike",
+      ],
+      ar: ["ماينكرافت", "فورتنايت", "فالورانت", "فيفا", "روكيت ليغ", "أمونغ أس", "كول أوف ديوتي", "أوفر واتش", "أبيكس ليجندز", "روبلوكس", "جي تي إيه", "إلدن رينغ", "ذا سيمز", "زيلدا", "كاونتر سترايك"],
+    },
+  },
+  general: {
+    name: {
+      en: "General",
+      ar: "عام",
+    },
+    words: {
+      en: [
+        "School",
+        "Holiday",
+        "Internet",
+        "Birthday",
+        "Shopping",
+        "Weather",
+        "Movie",
+        "Book",
+        "Restaurant",
+        "Family",
+        "Work",
+        "Travel",
+        "Coffee",
+        "Homework",
+        "Weekend",
+      ],
+      ar: ["مدرسة", "عطلة", "إنترنت", "عيد ميلاد", "تسوق", "طقس", "فيلم", "كتاب", "مطعم", "عائلة", "عمل", "سفر", "قهوة", "واجب", "نهاية الأسبوع"],
+    },
+  },
+  transportation: {
+    name: {
+      en: "Transportation",
+      ar: "مواصلات",
+    },
+    words: {
+      en: [
+        "Car",
+        "Plane",
+        "Bus",
+        "Train",
+        "Bicycle",
+        "Motorcycle",
+        "Taxi",
+        "Subway",
+        "Helicopter",
+        "Boat",
+        "Truck",
+        "Scooter",
+        "Tram",
+        "Ambulance",
+        "Ferry",
+      ],
+      ar: ["سيارة", "طائرة", "حافلة", "قطار", "دراجة", "دراجة نارية", "تاكسي", "مترو", "هليكوبتر", "قارب", "شاحنة", "سكوتر", "ترام", "إسعاف", "عبّارة"],
+    },
+  },
+  celebrities: {
+    name: {
+      en: "Celebrities",
+      ar: "مشاهير",
+    },
+    words: {
+      en: [
+        "Taylor Swift",
+        "Cristiano Ronaldo",
+        "Lionel Messi",
+        "Beyonce",
+        "Dwayne Johnson",
+        "Ariana Grande",
+        "Drake",
+        "Selena Gomez",
+        "Tom Cruise",
+        "Zendaya",
+        "Billie Eilish",
+        "MrBeast",
+        "Rihanna",
+        "Emma Watson",
+        "Keanu Reeves",
+      ],
+      ar: ["تايلور سويفت", "كريستيانو رونالدو", "ليونيل ميسي", "بيونسيه", "دوين جونسون", "أريانا غراندي", "دريك", "سيلينا غوميز", "توم كروز", "زيندايا", "بيلي آيليش", "مستر بيست", "ريهانا", "إيما واتسون", "كيانو ريفز"],
+    },
+  },
   foods: {
     name: {
       en: "Foods",
@@ -68,8 +250,63 @@ const WORD_PACKS = {
         "Italy",
         "India",
         "Norway",
+        "Germany",
+        "Australia",
+        "South Korea",
       ],
-      ar: ["اليابان", "البرازيل", "مصر", "فرنسا", "المغرب", "كندا", "إسبانيا", "تركيا", "المكسيك", "إيطاليا", "الهند", "النرويج"],
+      ar: ["اليابان", "البرازيل", "مصر", "فرنسا", "المغرب", "كندا", "إسبانيا", "تركيا", "المكسيك", "إيطاليا", "الهند", "النرويج", "ألمانيا", "أستراليا", "كوريا الجنوبية"],
+    },
+  },
+  music: {
+    name: {
+      en: "Music",
+      ar: "موسيقى",
+    },
+    words: {
+      en: [
+        "Guitar",
+        "Piano",
+        "Drums",
+        "Violin",
+        "Microphone",
+        "Concert",
+        "Album",
+        "Playlist",
+        "Rap",
+        "Rock",
+        "Pop",
+        "Jazz",
+        "DJ",
+        "Choir",
+        "Headphones",
+      ],
+      ar: ["غيتار", "بيانو", "طبول", "كمان", "ميكروفون", "حفلة موسيقية", "ألبوم", "قائمة تشغيل", "راب", "روك", "بوب", "جاز", "دي جي", "كورال", "سماعات"],
+    },
+  },
+  pcComponents: {
+    name: {
+      en: "PC Components",
+      ar: "قطع الكمبيوتر",
+    },
+    words: {
+      en: [
+        "CPU",
+        "GPU",
+        "Motherboard",
+        "RAM",
+        "SSD",
+        "Hard Drive",
+        "Power Supply",
+        "Cooling Fan",
+        "Case",
+        "Monitor",
+        "Keyboard",
+        "Mouse",
+        "Router",
+        "Sound Card",
+        "Thermal Paste",
+      ],
+      ar: ["معالج", "كرت شاشة", "لوحة أم", "رام", "إس إس دي", "قرص صلب", "مزود طاقة", "مروحة تبريد", "كيس", "شاشة", "كيبورد", "ماوس", "راوتر", "كرت صوت", "معجون حراري"],
     },
   },
   tvShows: {
